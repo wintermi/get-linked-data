@@ -180,7 +180,9 @@ func (crawler *Crawler) ExecuteScrape() error {
 	// Iterate through the URL and send the Collector for a Visit
 	for _, url := range crawler.URL {
 		logger.Info().Str("visiting", url).Msg(doubleIndent)
-		crawler.Collector.Visit(url)
+		if err := crawler.Collector.Visit(url); err != nil {
+			return fmt.Errorf("[ExecuteScrape] Colly Collector Visit Failed: %w", err)
+		}
 		time.Sleep(time.Millisecond * time.Duration(100))
 	}
 
