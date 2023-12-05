@@ -96,11 +96,16 @@ func main() {
 	logger.Info().Bool("Crawl URLs", *crawlURLs).Msg(indent)
 	logger.Info().Msg("Begin")
 
-	// Load the URLs into memory ready to crawl & scrape the Linked Data
+	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
 	var crawler = NewCrawler()
-	err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter)
-	if err != nil {
+	if err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter); err != nil {
 		logger.Error().Err(err).Msg("Failed Loading Queries")
+		os.Exit(1)
+	}
+
+	// Set the Allowed Domain List for the Colly Collector
+	if err := crawler.SetAllowedDomains(); err != nil {
+		logger.Error().Err(err).Msg("Failed to Set Allowed Domain List")
 		os.Exit(1)
 	}
 

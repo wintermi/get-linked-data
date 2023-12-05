@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -109,5 +110,32 @@ func (crawler *Crawler) DeduplicateURLs() error {
 
 // Populate the Collector Allowed Domains
 func (crawler *Crawler) SetAllowedDomains() error {
+
+	// Define a hash map and domain array list
+	bucket := make(map[string]bool)
+	var allowedDomains []string
+
+	logger.Info().Msgf("%s Allowed Domain List", indent)
+
+	// Iterate through the URL list and create a deduped domain list
+	var domainCount = 0
+	for _, rawURL := range crawler.URL {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return fmt.Errorf("[SetAllowedDomains] URL Parse Failed: %w", err)
+		}
+
+		hostname := u.Hostname()
+		if _, ok := bucket[hostname]; !ok {
+			domainCount++
+			bucket[hostname] = true
+			allowedDomains = append(allowedDomains, hostname)
+			logger.Info().Msgf("%s    - %s", indent, hostname)
+		}
+	}
+
+	// Replace the Collector Allowed Domain List
+	crawler.Collector.AllowedDomains = allowedDomains
+
 	return nil
 }
