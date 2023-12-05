@@ -15,11 +15,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gocolly/colly"
@@ -197,6 +199,39 @@ func (crawler *Crawler) ExecuteScrape() error {
 	}
 
 	logger.Info().Msgf("%s Colly Collection Finished", indent)
+
+	return nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Execute Scraping of URLs
+func (crawler *Crawler) WriteFile(name string, delimiter string) error {
+
+	logger.Info().Msgf("%s Writing Data to the Output File", indent)
+
+	// Open file ready for writing
+	file, err := os.Create(name)
+	if err != nil {
+		return fmt.Errorf("[WriteFile] Open File Failed: %w", err)
+	}
+	defer file.Close()
+
+	// Ready the CSV Writer and use a buffered io writer
+	w := csv.NewWriter(bufio.NewWriter(file))
+	w.Comma = rune(delimiter[0])
+	defer w.Flush()
+
+	// Iterate through the Scraped Data and Write to file
+	for _, data := range crawler.ScrapedData {
+
+		var row []string = make([]string, 1)
+		row[0] = strings.Replace(data, "\n", "", -1)
+
+		if err := w.Write(row); err != nil {
+			return fmt.Errorf("[WriteFile] Failed Writing to the File: %w", err)
+		}
+	}
 
 	return nil
 }

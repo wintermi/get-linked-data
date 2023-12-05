@@ -116,5 +116,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Write the Scraped Data out to a File
+	if err := crawler.WriteFile(*outputCsvFile, *fieldDelimiter); err != nil {
+		logger.Error().Err(err).Msg("Write File Failed")
+		os.Exit(1)
+	}
+
 	logger.Info().Msg("Done!")
 }
