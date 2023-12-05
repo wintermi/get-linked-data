@@ -40,7 +40,10 @@ func NewCrawler(selector string) *Crawler {
 
 	// Initialise New Crawler
 	crawler := new(Crawler)
-	crawler.Collector = colly.NewCollector()
+	crawler.Collector = colly.NewCollector(
+		colly.UserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/120.0"),
+		colly.MaxDepth(5),
+	)
 	crawler.Selector = selector
 
 	return crawler
@@ -174,15 +177,18 @@ func (crawler *Crawler) ExecuteScrape() error {
 	// Define the Selector Callback Function
 	crawler.Collector.OnHTML(crawler.Selector, func(element *colly.HTMLElement) {
 		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
-		logger.Info().Msgf("%s    - %v", doubleIndent, element)
+	})
+
+	// If errror occurred during the request, handle it!
+	crawler.Collector.OnError(func(r *colly.Response, err error) {
+		logger.Error().Err(fmt.Errorf("Colly Collector Visit Failed: %w", err)).Msg(doubleIndent)
+		logger.Error().Any("response", r).Msg(doubleIndent)
 	})
 
 	// Iterate through the URL and send the Collector for a Visit
 	for _, url := range crawler.URL {
 		logger.Info().Str("visiting", url).Msg(doubleIndent)
-		if err := crawler.Collector.Visit(url); err != nil {
-			return fmt.Errorf("[ExecuteScrape] Colly Collector Visit Failed: %w", err)
-		}
+		_ = crawler.Collector.Visit(url)
 		time.Sleep(time.Millisecond * time.Duration(100))
 	}
 
