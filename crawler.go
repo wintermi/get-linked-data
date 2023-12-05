@@ -179,6 +179,10 @@ func (crawler *Crawler) ExecuteScrape() error {
 		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
 	})
 
+	crawler.Collector.OnXML(crawler.Selector, func(element *colly.XMLElement) {
+		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+	})
+
 	// If errror occurred during the request, handle it!
 	crawler.Collector.OnError(func(r *colly.Response, err error) {
 		logger.Error().Err(fmt.Errorf("Colly Collector Visit Failed: %w", err)).Msg(doubleIndent)
