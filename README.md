@@ -15,7 +15,6 @@ USAGE:
     get-linked-data -i URL_CSV -e ELEMENT_SELECTOR -o OUTPUT_CSV
 
 ARGS:
-  -c	Crawl URLs before Scraping
   -d string
     	Field Delimiter  (Required) (default ",")
   -e string
