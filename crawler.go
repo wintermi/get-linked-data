@@ -20,21 +20,29 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gocolly/colly"
+	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
 type Crawler struct {
-	Collector *colly.Collector
-	URL       []string
+	Collector   *colly.Collector
+	Selector    string
+	URL         []string
+	ScrapedData []string
 }
 
 //---------------------------------------------------------------------------------------
 
 // Return New Instance of a Crawler with an Embedded Colly Collector
-func NewCrawler() *Crawler {
+func NewCrawler(selector string) *Crawler {
+
+	// Initialise New Crawler
 	crawler := new(Crawler)
 	crawler.Collector = colly.NewCollector()
+	crawler.Selector = selector
+
 	return crawler
 }
 
@@ -118,24 +126,65 @@ func (crawler *Crawler) SetAllowedDomains() error {
 	logger.Info().Msgf("%s Allowed Domain List", indent)
 
 	// Iterate through the URL list and create a deduped domain list
-	var domainCount = 0
 	for _, rawURL := range crawler.URL {
+		// Parse URL and trieve the hostname
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return fmt.Errorf("[SetAllowedDomains] URL Parse Failed: %w", err)
 		}
-
 		hostname := u.Hostname()
+
+		// Parse the domain name from the hostname
+		domain, err := publicsuffix.Domain(hostname)
+		if err != nil {
+			return fmt.Errorf("[SetAllowedDomains] Domain Parse Failed: %w", err)
+		}
+
+		// Add domain name, e.g. google.com
+		if _, ok := bucket[domain]; !ok {
+			bucket[domain] = true
+			allowedDomains = append(allowedDomains, domain)
+			logger.Info().Str("allowed", domain).Msg(doubleIndent)
+		}
+
+		// Add hostname, e.g. www.google.com
 		if _, ok := bucket[hostname]; !ok {
-			domainCount++
 			bucket[hostname] = true
 			allowedDomains = append(allowedDomains, hostname)
-			logger.Info().Msgf("%s    - %s", indent, hostname)
+			logger.Info().Str("allowed", hostname).Msg(doubleIndent)
 		}
 	}
 
-	// Replace the Collector Allowed Domain List
+	// Set the Collector Allowed Domain List
 	crawler.Collector.AllowedDomains = allowedDomains
+
+	return nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Execute Scraping of URLs
+func (crawler *Crawler) ExecuteScrape() error {
+
+	// Initialise Scraped Data Output
+	crawler.ScrapedData = make([]string, 0)
+
+	logger.Info().Msgf("%s Colly Collection Started", indent)
+
+	// Define the Selector Callback Function
+	crawler.Collector.OnHTML(crawler.Selector, func(element *colly.HTMLElement) {
+		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+		logger.Info().Msgf("%s    - %v", doubleIndent, element)
+	})
+
+	// Iterate through the URL and send the Collector for a Visit
+	for _, url := range crawler.URL {
+		logger.Info().Str("visiting", url).Msg(doubleIndent)
+		crawler.Collector.Visit(url)
+		time.Sleep(time.Millisecond * time.Duration(100))
+	}
+
+	logger.Info().Msgf("%s Colly Collection Finished", indent)
 
 	return nil
 }

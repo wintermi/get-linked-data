@@ -15,7 +15,7 @@ USAGE:
     get-linked-data -i URL_CSV -e ELEMENT_SELECTOR -o OUTPUT_CSV
 
 ARGS:
-  -c	Crawl URLs
+  -c	Crawl URLs before Scraping
   -d string
     	Field Delimiter  (Required) (default ",")
   -e string
@@ -30,7 +30,7 @@ ARGS:
 ## Example
 
 ```
-get-linked-data -i "urls.csv" -e "product-schema" -o "results.csv"
+get-linked-data -i "urls.csv" -e "script#product-schema" -o "results.csv"
 ```
 
 

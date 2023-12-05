@@ -28,6 +28,7 @@ var logger zerolog.Logger
 var applicationText = "%s 0.1.0%s"
 var copyrightText = "Copyright 2023-2024, Matthew Winter\n"
 var indent = "..."
+var doubleIndent = "......."
 
 var helpText = `
 A command line application designed to crawl a given set of URLs and scrape
@@ -56,7 +57,7 @@ func main() {
 	var elementSelector = flag.String("e", "", "Element Selector  (Required)")
 	var outputCsvFile = flag.String("o", "", "Output CSV File  (Required)")
 	var fieldDelimiter = flag.String("d", ",", "Field Delimiter  (Required)")
-	var crawlURLs = flag.Bool("c", false, "Crawl URLs")
+	var crawlURLs = flag.Bool("c", false, "Crawl URLs before Scraping")
 	var verbose = flag.Bool("v", false, "Output Verbose Detail")
 
 	// Parse the flags
@@ -93,11 +94,11 @@ func main() {
 	logger.Info().Str("Element Selector", *elementSelector).Msg(indent)
 	logger.Info().Str("Output CSV File", *outputCsvFile).Msg(indent)
 	logger.Info().Str("Field Delimiter", *fieldDelimiter).Msg(indent)
-	logger.Info().Bool("Crawl URLs", *crawlURLs).Msg(indent)
+	logger.Info().Bool("Crawl URLs before Scraping", *crawlURLs).Msg(indent)
 	logger.Info().Msg("Begin")
 
 	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
-	var crawler = NewCrawler()
+	var crawler = NewCrawler(*elementSelector)
 	if err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter); err != nil {
 		logger.Error().Err(err).Msg("Failed Loading Queries")
 		os.Exit(1)
@@ -106,6 +107,12 @@ func main() {
 	// Set the Allowed Domain List for the Colly Collector
 	if err := crawler.SetAllowedDomains(); err != nil {
 		logger.Error().Err(err).Msg("Failed to Set Allowed Domain List")
+		os.Exit(1)
+	}
+
+	// Execute the Colly Collector
+	if err := crawler.ExecuteScrape(); err != nil {
+		logger.Error().Err(err).Msg("Linked Data Scrape Failed")
 		os.Exit(1)
 	}
 
