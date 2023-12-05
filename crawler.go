@@ -169,7 +169,7 @@ func (crawler *Crawler) SetAllowedDomains() error {
 //---------------------------------------------------------------------------------------
 
 // Execute Scraping of URLs
-func (crawler *Crawler) ExecuteScrape(scrapeXML bool) error {
+func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 
 	// Initialise Scraped Data Output
 	crawler.ScrapedData = make([]string, 0)
@@ -198,7 +198,7 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool) error {
 	for _, url := range crawler.URL {
 		logger.Info().Str("visiting", url).Msg(doubleIndent)
 		_ = crawler.Collector.Visit(url)
-		time.Sleep(time.Millisecond * time.Duration(100))
+		time.Sleep(time.Millisecond * time.Duration(waitTime))
 	}
 
 	logger.Info().Msgf("%s Colly Collection Finished", indent)

@@ -57,6 +57,7 @@ func main() {
 	var elementSelector = flag.String("e", "", "Element Selector  (Required)")
 	var outputCsvFile = flag.String("o", "", "Output CSV File  (Required)")
 	var fieldDelimiter = flag.String("d", ",", "Field Delimiter  (Required)")
+	var waitTime = flag.Int64("w", 100, "Wait Time in Milliseconds between Colly Visits")
 	var scrapeXML = flag.Bool("x", false, "Scrape XML not HTML")
 	var verbose = flag.Bool("v", false, "Output Verbose Detail")
 
@@ -94,6 +95,7 @@ func main() {
 	logger.Info().Str("Element Selector", *elementSelector).Msg(indent)
 	logger.Info().Str("Output CSV File", *outputCsvFile).Msg(indent)
 	logger.Info().Str("Field Delimiter", *fieldDelimiter).Msg(indent)
+	logger.Info().Int64("Wait Time in Milliseconds between Colly Visits", *waitTime).Msg(indent)
 	logger.Info().Bool("Scrape XML not HTML", *scrapeXML).Msg(indent)
 	logger.Info().Msg("Begin")
 
@@ -111,7 +113,7 @@ func main() {
 	}
 
 	// Execute the Colly Collector
-	if err := crawler.ExecuteScrape(*scrapeXML); err != nil {
+	if err := crawler.ExecuteScrape(*scrapeXML, *waitTime); err != nil {
 		logger.Error().Err(err).Msg("Linked Data Scrape Failed")
 		os.Exit(1)
 	}

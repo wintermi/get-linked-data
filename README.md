@@ -24,6 +24,8 @@ ARGS:
   -o string
     	Output CSV File  (Required)
   -v	Output Verbose Detail
+  -w int
+    	Wait Time in Milliseconds between Colly Visits (default 100)
   -x	Scrape XML not HTML
 ```
 
