@@ -24,6 +24,7 @@ ARGS:
   -o string
     	Output CSV File  (Required)
   -v	Output Verbose Detail
+  -x	Scrape XML not HTML
 ```
 
 ## Example

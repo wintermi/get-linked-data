@@ -169,21 +169,24 @@ func (crawler *Crawler) SetAllowedDomains() error {
 //---------------------------------------------------------------------------------------
 
 // Execute Scraping of URLs
-func (crawler *Crawler) ExecuteScrape() error {
+func (crawler *Crawler) ExecuteScrape(scrapeXML bool) error {
 
 	// Initialise Scraped Data Output
 	crawler.ScrapedData = make([]string, 0)
 
 	logger.Info().Msgf("%s Colly Collection Started", indent)
 
-	// Define the Selector Callback Function
-	crawler.Collector.OnHTML(crawler.Selector, func(element *colly.HTMLElement) {
-		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
-	})
-
-	crawler.Collector.OnXML(crawler.Selector, func(element *colly.XMLElement) {
-		crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
-	})
+	// Scrape XML or HTML
+	if scrapeXML {
+		crawler.Collector.OnXML(crawler.Selector, func(element *colly.XMLElement) {
+			crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+		})
+	} else {
+		// Define the Selector Callback Function
+		crawler.Collector.OnHTML(crawler.Selector, func(element *colly.HTMLElement) {
+			crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+		})
+	}
 
 	// If errror occurred during the request, handle it!
 	crawler.Collector.OnError(func(r *colly.Response, err error) {
