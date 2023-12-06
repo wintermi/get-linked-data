@@ -176,6 +176,11 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 
 	logger.Info().Msgf("%s Colly Collection Started", indent)
 
+	// Allow for the modification of the request headers
+	crawler.Collector.OnRequest(func(request *colly.Request) {
+		request.Headers.Set("Accept-Encoding", "gzip")
+	})
+
 	// Scrape XML or HTML
 	if scrapeXML {
 		crawler.Collector.OnXML(crawler.Selector, func(element *colly.XMLElement) {
@@ -191,7 +196,7 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 	// If errror occurred during the request, handle it!
 	crawler.Collector.OnError(func(r *colly.Response, err error) {
 		logger.Error().Err(fmt.Errorf("Colly Collector Visit Failed: %w", err)).Msg(doubleIndent)
-		logger.Error().Any("response", r).Msg(doubleIndent)
+		logger.Debug().Any("response", r).Msg(doubleIndent)
 	})
 
 	// Iterate through the URL and send the Collector for a Visit
