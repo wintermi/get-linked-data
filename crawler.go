@@ -48,6 +48,7 @@ func NewCrawler(elementSelector string, jqSelector string) *Crawler {
 	crawler := new(Crawler)
 	crawler.Collector = colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/120.0"),
+		colly.AllowURLRevisit(),
 		colly.MaxDepth(5),
 	)
 	crawler.elementSelector = elementSelector
@@ -213,11 +214,22 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 		logger.Debug().Any("response", r).Msg(doubleIndent)
 	})
 
-	// Iterate through the URL and send the Collector for a Visit
+	// Iterate through the URL List and send the Collector for a Visit
 	for _, url := range crawler.URL {
-		logger.Info().Str("visiting", url).Msg(doubleIndent)
-		_ = crawler.Collector.Visit(url)
-		time.Sleep(time.Millisecond * time.Duration(waitTime))
+
+		// Retry upto 3 times
+		var retryCount = 1
+		for {
+			logger.Info().Int("attempt", retryCount).Str("visiting", url).Msg(doubleIndent)
+
+			err := crawler.Collector.Visit(url)
+			time.Sleep(time.Millisecond * time.Duration(waitTime))
+			retryCount++
+
+			if err == nil || retryCount > 3 {
+				break
+			}
+		}
 	}
 
 	logger.Info().Msgf("%s Colly Collection Finished", indent)
