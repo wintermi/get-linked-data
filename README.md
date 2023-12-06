@@ -21,6 +21,8 @@ ARGS:
     	Element Selector  (Required)
   -i string
     	CSV File containing URLs to Scrape  (Required)
+  -j string
+    	jq Selector
   -o string
     	Output CSV File  (Required)
   -v	Output Verbose Detail

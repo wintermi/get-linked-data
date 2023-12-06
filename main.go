@@ -25,7 +25,7 @@ import (
 )
 
 var logger zerolog.Logger
-var applicationText = "%s 0.1.0%s"
+var applicationText = "%s 0.2.0%s"
 var copyrightText = "Copyright 2023-2024, Matthew Winter\n"
 var indent = "..."
 var doubleIndent = "......."
@@ -55,6 +55,7 @@ func main() {
 	// Define the Long CLI flag names
 	var inputCsvFile = flag.String("i", "", "CSV File containing URLs to Scrape  (Required)")
 	var elementSelector = flag.String("e", "", "Element Selector  (Required)")
+	var jqSelector = flag.String("j", "", "jq Selector")
 	var outputCsvFile = flag.String("o", "", "Output CSV File  (Required)")
 	var fieldDelimiter = flag.String("d", ",", "Field Delimiter  (Required)")
 	var waitTime = flag.Int64("w", 100, "Wait Time in Milliseconds between Colly Visits")
@@ -93,6 +94,7 @@ func main() {
 	logger.Info().Msg("Arguments")
 	logger.Info().Str("CSV File containing URLs to Scrape", *inputCsvFile).Msg(indent)
 	logger.Info().Str("Element Selector", *elementSelector).Msg(indent)
+	logger.Info().Str("jq Selector", *jqSelector).Msg(indent)
 	logger.Info().Str("Output CSV File", *outputCsvFile).Msg(indent)
 	logger.Info().Str("Field Delimiter", *fieldDelimiter).Msg(indent)
 	logger.Info().Int64("Wait Time in Milliseconds between Colly Visits", *waitTime).Msg(indent)
@@ -100,7 +102,7 @@ func main() {
 	logger.Info().Msg("Begin")
 
 	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
-	var crawler = NewCrawler(*elementSelector)
+	var crawler = NewCrawler(*elementSelector, *jqSelector)
 	if err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter); err != nil {
 		logger.Error().Err(err).Msg("Failed Loading Queries")
 		os.Exit(1)

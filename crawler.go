@@ -17,6 +17,8 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -25,20 +27,22 @@ import (
 	"time"
 
 	"github.com/gocolly/colly"
+	"github.com/itchyny/gojq"
 	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
 type Crawler struct {
-	Collector   *colly.Collector
-	Selector    string
-	URL         []string
-	ScrapedData []string
+	Collector       *colly.Collector
+	elementSelector string
+	jqSelector      string
+	URL             []string
+	ScrapedData     []string
 }
 
 //---------------------------------------------------------------------------------------
 
 // Return New Instance of a Crawler with an Embedded Colly Collector
-func NewCrawler(selector string) *Crawler {
+func NewCrawler(elementSelector string, jqSelector string) *Crawler {
 
 	// Initialise New Crawler
 	crawler := new(Crawler)
@@ -46,7 +50,8 @@ func NewCrawler(selector string) *Crawler {
 		colly.UserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/120.0"),
 		colly.MaxDepth(5),
 	)
-	crawler.Selector = selector
+	crawler.elementSelector = elementSelector
+	crawler.jqSelector = jqSelector
 
 	return crawler
 }
@@ -183,13 +188,22 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 
 	// Scrape XML or HTML
 	if scrapeXML {
-		crawler.Collector.OnXML(crawler.Selector, func(element *colly.XMLElement) {
+		// Define the OnXML Selector Callback Function
+		crawler.Collector.OnXML(crawler.elementSelector, func(element *colly.XMLElement) {
 			crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
 		})
 	} else {
-		// Define the Selector Callback Function
-		crawler.Collector.OnHTML(crawler.Selector, func(element *colly.HTMLElement) {
-			crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+		// Define the OnHTML Selector Callback Function
+		crawler.Collector.OnHTML(crawler.elementSelector, func(element *colly.HTMLElement) {
+
+			// Execute the jq Selector
+			textSelected, err := jqSelect(element.Text, crawler.jqSelector)
+			if err != nil {
+				logger.Error().Err(fmt.Errorf("jq Selector Failed: %w", err)).Msg(doubleIndent)
+				return
+			}
+
+			crawler.ScrapedData = append(crawler.ScrapedData, textSelected)
 		})
 	}
 
@@ -242,4 +256,43 @@ func (crawler *Crawler) WriteFile(name string, delimiter string) error {
 	}
 
 	return nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Execute Scraping of URL
+func jqSelect(elementText string, query string) (string, error) {
+
+	// If the JSON Selector Query was NOT provided then return the element text
+	if query == "" {
+		return elementText, nil
+	}
+
+	// Convert the element text to a JSON Object before querying
+	var jsonData map[string]any
+	if err := json.Unmarshal([]byte(elementText), &jsonData); err != nil {
+		return "", fmt.Errorf("Selected Element Text is not a valid JSON Object: %w", err)
+	}
+
+	// Parse the provided jq selector text
+	jq, err := gojq.Parse(query)
+	if err != nil {
+		return "", fmt.Errorf("jq Selector Parse Failed: %w", err)
+	}
+
+	// Execute the jq Selector against the element text only returning the first value
+	jqSelector := jq.Run(jsonData)
+	val, ok := jqSelector.Next()
+	if !ok {
+		return "", errors.New("jq Selector Failed to Find First Value")
+	}
+
+	// Check if the first value returned is actually an error
+	if err, ok := val.(error); ok {
+		return "", fmt.Errorf("jq Selector Run Failed: %w", err)
+	}
+
+	// Convert the first value returned to a raw JSON string and return
+	rawJSON, _ := json.Marshal(val)
+	return string(rawJSON), nil
 }
