@@ -55,7 +55,7 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 		colly.MaxDepth(1),
 		colly.Async(true),
 	)
-	c.Collector.Limit(&colly.LimitRule{
+	_ = c.Collector.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: parallelism,
 		RandomDelay: time.Millisecond * time.Duration(waitTime),
