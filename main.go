@@ -25,7 +25,7 @@ import (
 )
 
 var logger zerolog.Logger
-var applicationText = "%s 0.2.0%s"
+var applicationText = "%s 0.3.0%s"
 var copyrightText = "Copyright 2023-2024, Matthew Winter\n"
 var indent = "..."
 var doubleIndent = "......."
@@ -39,7 +39,7 @@ Use --help for more details.
 
 
 USAGE:
-    get-linked-data -i URL_CSV -e ELEMENT_SELECTOR -o OUTPUT_CSV
+    get-linked-data -i URL_CSV -s ELEMENT_SELECTOR -o OUTPUT_CSV -e FAILED_URL_CSV
 
 ARGS:
 `
@@ -54,11 +54,13 @@ func main() {
 
 	// Define the Long CLI flag names
 	var inputCsvFile = flag.String("i", "", "CSV File containing URLs to Scrape  (Required)")
-	var elementSelector = flag.String("e", "", "Element Selector  (Required)")
+	var elementSelector = flag.String("s", "", "Element Selector  (Required)")
 	var jqSelector = flag.String("j", "", "jq Selector")
-	var outputCsvFile = flag.String("o", "", "Output CSV File  (Required)")
+	var outputCsvFile = flag.String("o", "", "Output Scraped Data CSV File  (Required)")
+	var errorCsvFile = flag.String("e", "", "Failed Request URLs Output CSV File  (Required)")
 	var fieldDelimiter = flag.String("d", ",", "Field Delimiter  (Required)")
-	var waitTime = flag.Int64("w", 100, "Wait Time in Milliseconds between Colly Visits")
+	var parallelism = flag.Int("p", 10, "Parallelism or Maximum allowed Concurrent Requests")
+	var waitTime = flag.Int("w", 500, "Random Wait Time in Milliseconds between Requests")
 	var scrapeXML = flag.Bool("x", false, "Scrape XML not HTML")
 	var verbose = flag.Bool("v", false, "Output Verbose Detail")
 
@@ -66,7 +68,7 @@ func main() {
 	flag.Parse()
 
 	// Validate the Required Flags
-	if *inputCsvFile == "" || *elementSelector == "" || *outputCsvFile == "" {
+	if *inputCsvFile == "" || *elementSelector == "" || *outputCsvFile == "" || *errorCsvFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -95,14 +97,16 @@ func main() {
 	logger.Info().Str("CSV File containing URLs to Scrape", *inputCsvFile).Msg(indent)
 	logger.Info().Str("Element Selector", *elementSelector).Msg(indent)
 	logger.Info().Str("jq Selector", *jqSelector).Msg(indent)
-	logger.Info().Str("Output CSV File", *outputCsvFile).Msg(indent)
+	logger.Info().Str("Output Scraped Data CSV File", *outputCsvFile).Msg(indent)
+	logger.Info().Str("Failed Request URLs Output CSV File", *errorCsvFile).Msg(indent)
 	logger.Info().Str("Field Delimiter", *fieldDelimiter).Msg(indent)
-	logger.Info().Int64("Wait Time in Milliseconds between Colly Visits", *waitTime).Msg(indent)
+	logger.Info().Int("Parallelism or Maximum allowed Concurrent Requests", *parallelism).Msg(indent)
+	logger.Info().Int("Random Wait Time in Milliseconds between Requests", *waitTime).Msg(indent)
 	logger.Info().Bool("Scrape XML not HTML", *scrapeXML).Msg(indent)
 	logger.Info().Msg("Begin")
 
 	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
-	var crawler = NewCrawler(*elementSelector, *jqSelector)
+	var crawler = NewCrawler(*elementSelector, *jqSelector, *waitTime, *parallelism)
 	if err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter); err != nil {
 		logger.Error().Err(err).Msg("Failed Loading Queries")
 		os.Exit(1)
@@ -115,14 +119,20 @@ func main() {
 	}
 
 	// Execute the Colly Collector
-	if err := crawler.ExecuteScrape(*scrapeXML, *waitTime); err != nil {
+	if err := crawler.ExecuteScrape(*scrapeXML); err != nil {
 		logger.Error().Err(err).Msg("Linked Data Scrape Failed")
 		os.Exit(1)
 	}
 
 	// Write the Scraped Data out to a File
-	if err := crawler.WriteFile(*outputCsvFile, *fieldDelimiter); err != nil {
-		logger.Error().Err(err).Msg("Write File Failed")
+	if err := crawler.WriteDataFile(*outputCsvFile, *fieldDelimiter); err != nil {
+		logger.Error().Err(err).Msg("Write Data File Failed")
+		os.Exit(1)
+	}
+
+	// Write the Failed Request URLs out to a File
+	if err := crawler.WriteErrorFile(*errorCsvFile, *fieldDelimiter); err != nil {
+		logger.Error().Err(err).Msg("Write Error File Failed")
 		os.Exit(1)
 	}
 

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,36 +32,48 @@ import (
 	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
+const ORIGINAL_URL = "ORIGINAL_URL"
+
 type Crawler struct {
-	Collector       *colly.Collector
-	elementSelector string
-	jqSelector      string
-	URL             []string
-	ScrapedData     []string
+	Collector         *colly.Collector
+	elementSelector   string
+	jqSelector        string
+	URLs              []string
+	FailedRequestURLs []string
+	ScrapedData       []string
 }
 
 //---------------------------------------------------------------------------------------
 
 // Return New Instance of a Crawler with an Embedded Colly Collector
-func NewCrawler(elementSelector string, jqSelector string) *Crawler {
+func NewCrawler(elementSelector string, jqSelector string, waitTime int, parallelism int) *Crawler {
 
 	// Initialise New Crawler
-	crawler := new(Crawler)
-	crawler.Collector = colly.NewCollector(
+	c := new(Crawler)
+	c.Collector = colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/120.0"),
-		colly.AllowURLRevisit(),
-		colly.MaxDepth(5),
+		colly.MaxDepth(1),
+		colly.Async(true),
 	)
-	crawler.elementSelector = elementSelector
-	crawler.jqSelector = jqSelector
+	c.Collector.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: parallelism,
+		RandomDelay: time.Millisecond * time.Duration(waitTime),
+	})
+	c.Collector.SetRequestTimeout(120 * time.Second)
+	c.Collector.WithTransport(&http.Transport{
+		DisableKeepAlives: true,
+	})
+	c.elementSelector = elementSelector
+	c.jqSelector = jqSelector
 
-	return crawler
+	return c
 }
 
 //---------------------------------------------------------------------------------------
 
 // Load all URLs from the first column of the provided CSV File
-func (crawler *Crawler) LoadUrlFile(name string, delimiter string) error {
+func (c *Crawler) LoadUrlFile(name string, delimiter string) error {
 
 	// Check file exists
 	if _, err := os.Stat(name); err != nil {
@@ -94,7 +107,7 @@ func (crawler *Crawler) LoadUrlFile(name string, delimiter string) error {
 			url := value[0]
 			if _, ok := bucket[url]; !ok {
 				bucket[url] = true
-				crawler.URL = append(crawler.URL, url)
+				c.URLs = append(c.URLs, url)
 			}
 		}
 	}
@@ -105,14 +118,14 @@ func (crawler *Crawler) LoadUrlFile(name string, delimiter string) error {
 //---------------------------------------------------------------------------------------
 
 // Deduplicate the list of URLs
-func (crawler *Crawler) DeduplicateURLs() error {
+func (c *Crawler) DeduplicateURLs() error {
 
 	// Define a hash map and deduped array list
 	bucket := make(map[string]bool)
 	var deduped []string
 
 	// Iterate through the URL list and remove duplicates
-	for _, url := range crawler.URL {
+	for _, url := range c.URLs {
 		if _, ok := bucket[url]; !ok {
 			bucket[url] = true
 			deduped = append(deduped, url)
@@ -120,7 +133,7 @@ func (crawler *Crawler) DeduplicateURLs() error {
 	}
 
 	// Replace the Crawler URL list with the deduped list
-	crawler.URL = deduped
+	c.URLs = deduped
 
 	return nil
 }
@@ -128,7 +141,7 @@ func (crawler *Crawler) DeduplicateURLs() error {
 //---------------------------------------------------------------------------------------
 
 // Populate the Collector Allowed Domains
-func (crawler *Crawler) SetAllowedDomains() error {
+func (c *Crawler) SetAllowedDomains() error {
 
 	// Define a hash map and domain array list
 	bucket := make(map[string]bool)
@@ -137,7 +150,7 @@ func (crawler *Crawler) SetAllowedDomains() error {
 	logger.Info().Msgf("%s Allowed Domain List", indent)
 
 	// Iterate through the URL list and create a deduped domain list
-	for _, rawURL := range crawler.URL {
+	for _, rawURL := range c.URLs {
 		// Parse URL and trieve the hostname
 		u, err := url.Parse(rawURL)
 		if err != nil {
@@ -167,7 +180,7 @@ func (crawler *Crawler) SetAllowedDomains() error {
 	}
 
 	// Set the Collector Allowed Domain List
-	crawler.Collector.AllowedDomains = allowedDomains
+	c.Collector.AllowedDomains = allowedDomains
 
 	return nil
 }
@@ -175,62 +188,60 @@ func (crawler *Crawler) SetAllowedDomains() error {
 //---------------------------------------------------------------------------------------
 
 // Execute Scraping of URLs
-func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
+func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
+	defer timer("Colly Collection")()
 
 	// Initialise Scraped Data Output
-	crawler.ScrapedData = make([]string, 0)
+	c.ScrapedData = make([]string, 0)
 
 	logger.Info().Msgf("%s Colly Collection Started", indent)
 
-	// Allow for the modification of the request headers
-	crawler.Collector.OnRequest(func(request *colly.Request) {
-		request.Headers.Set("Accept-Encoding", "gzip")
+	// Executed on every request made by the Colly Collector
+	c.Collector.OnRequest(func(r *colly.Request) {
+		r.Headers.Set("Accept-Encoding", "gzip")
+		r.Ctx.Put(ORIGINAL_URL, r.URL.String())
+	})
+
+	// Executed on every response received
+	c.Collector.OnResponse(func(r *colly.Response) {
+		originalURL := r.Request.Ctx.Get(ORIGINAL_URL)
+		logger.Info().Int("Status Code", r.StatusCode).Str("Visited", originalURL).Msg(doubleIndent)
 	})
 
 	// Scrape XML or HTML
 	if scrapeXML {
-		// Define the OnXML Selector Callback Function
-		crawler.Collector.OnXML(crawler.elementSelector, func(element *colly.XMLElement) {
-			crawler.ScrapedData = append(crawler.ScrapedData, element.Text)
+		// Executed on every XML element matched by the xpath Query parameter
+		c.Collector.OnXML(c.elementSelector, func(element *colly.XMLElement) {
+			c.ScrapedData = append(c.ScrapedData, element.Text)
 		})
 	} else {
-		// Define the OnHTML Selector Callback Function
-		crawler.Collector.OnHTML(crawler.elementSelector, func(element *colly.HTMLElement) {
+		// Executed on every HTML element matched by the GoQuery Selector
+		c.Collector.OnHTML(c.elementSelector, func(element *colly.HTMLElement) {
 
 			// Execute the jq Selector
-			textSelected, err := jqSelect(element.Text, crawler.jqSelector)
+			textSelected, err := jqSelect(element.Text, c.jqSelector)
 			if err != nil {
 				logger.Error().Err(fmt.Errorf("jq Selector Failed: %w", err)).Msg(doubleIndent)
 				return
 			}
 
-			crawler.ScrapedData = append(crawler.ScrapedData, textSelected)
+			c.ScrapedData = append(c.ScrapedData, textSelected)
 		})
 	}
 
-	// If errror occurred during the request, handle it!
-	crawler.Collector.OnError(func(r *colly.Response, err error) {
-		logger.Error().Err(fmt.Errorf("Colly Collector Visit Failed: %w", err)).Msg(doubleIndent)
-		logger.Debug().Any("response", r).Msg(doubleIndent)
+	// Executed if an error occurs during the HTTP request
+	c.Collector.OnError(func(r *colly.Response, err error) {
+		originalURL := r.Request.Ctx.Get(ORIGINAL_URL)
+		c.FailedRequestURLs = append(c.FailedRequestURLs, originalURL)
+		logger.Error().Int("Status Code", r.StatusCode).Err(err).Str("Visited", originalURL).Msg(doubleIndent)
+		logger.Debug().Any("Response", r).Msg(doubleIndent)
 	})
 
-	// Iterate through the URL List and send the Collector for a Visit
-	for _, url := range crawler.URL {
-
-		// Retry upto 3 times
-		var retryCount = 1
-		for {
-			logger.Info().Int("attempt", retryCount).Str("visiting", url).Msg(doubleIndent)
-
-			err := crawler.Collector.Visit(url)
-			time.Sleep(time.Millisecond * time.Duration(waitTime))
-			retryCount++
-
-			if err == nil || retryCount > 3 {
-				break
-			}
-		}
+	// Iterate through the URL List and add to the Collector queue for a Visit
+	for _, url := range c.URLs {
+		_ = c.Collector.Visit(url)
 	}
+	c.Collector.Wait()
 
 	logger.Info().Msgf("%s Colly Collection Finished", indent)
 
@@ -239,15 +250,15 @@ func (crawler *Crawler) ExecuteScrape(scrapeXML bool, waitTime int64) error {
 
 //---------------------------------------------------------------------------------------
 
-// Execute Scraping of URLs
-func (crawler *Crawler) WriteFile(name string, delimiter string) error {
+// Write the Scraped Data out to a File
+func (c *Crawler) WriteDataFile(name string, delimiter string) error {
 
-	logger.Info().Msgf("%s Writing Data to the Output File", indent)
+	logger.Info().Msgf("%s Writing Scraped Data Output File", indent)
 
 	// Open file ready for writing
 	file, err := os.Create(name)
 	if err != nil {
-		return fmt.Errorf("[WriteFile] Open File Failed: %w", err)
+		return fmt.Errorf("[WriteDataFile] Create File Failed: %w", err)
 	}
 	defer file.Close()
 
@@ -257,13 +268,13 @@ func (crawler *Crawler) WriteFile(name string, delimiter string) error {
 	defer w.Flush()
 
 	// Iterate through the Scraped Data and Write to file
-	for _, data := range crawler.ScrapedData {
+	for _, data := range c.ScrapedData {
 
 		var row []string = make([]string, 1)
 		row[0] = strings.Replace(data, "\n", "", -1)
 
 		if err := w.Write(row); err != nil {
-			return fmt.Errorf("[WriteFile] Failed Writing to the File: %w", err)
+			return fmt.Errorf("[WriteDataFile] Failed Writing to the File: %w", err)
 		}
 	}
 
@@ -272,17 +283,50 @@ func (crawler *Crawler) WriteFile(name string, delimiter string) error {
 
 //---------------------------------------------------------------------------------------
 
-// Execute Scraping of URL
-func jqSelect(elementText string, query string) (string, error) {
+// Write the Failed Request URLs out to a File
+func (c *Crawler) WriteErrorFile(name string, delimiter string) error {
+
+	logger.Info().Msgf("%s Writing Failed Request URLs Output File", indent)
+
+	// Open file ready for writing
+	file, err := os.Create(name)
+	if err != nil {
+		return fmt.Errorf("[WriteErrorFile] Create File Failed: %w", err)
+	}
+	defer file.Close()
+
+	// Ready the CSV Writer and use a buffered io writer
+	w := csv.NewWriter(bufio.NewWriter(file))
+	w.Comma = rune(delimiter[0])
+	defer w.Flush()
+
+	// Iterate through the Scraped Data and Write to file
+	for _, data := range c.FailedRequestURLs {
+
+		var row []string = make([]string, 1)
+		row[0] = strings.Replace(data, "\n", "", -1)
+
+		if err := w.Write(row); err != nil {
+			return fmt.Errorf("[WriteErrorFile] Failed Writing to the File: %w", err)
+		}
+	}
+
+	return nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Execute the 'jq' Selector against the JSON Object text returned
+func jqSelect(selectedText string, query string) (string, error) {
 
 	// If the JSON Selector Query was NOT provided then return the element text
 	if query == "" {
-		return elementText, nil
+		return selectedText, nil
 	}
 
 	// Convert the element text to a JSON Object before querying
 	var jsonData map[string]any
-	if err := json.Unmarshal([]byte(elementText), &jsonData); err != nil {
+	if err := json.Unmarshal([]byte(selectedText), &jsonData); err != nil {
 		return "", fmt.Errorf("Selected Element Text is not a valid JSON Object: %w", err)
 	}
 
@@ -307,4 +351,14 @@ func jqSelect(elementText string, query string) (string, error) {
 	// Convert the first value returned to a raw JSON string and return
 	rawJSON, _ := json.Marshal(val)
 	return string(rawJSON), nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Execute the 'jq' Selector against the JSON Object text returned
+func timer(name string) func() {
+	start := time.Now()
+	return func() {
+		logger.Info().Msgf("%s %s took %v", indent, name, time.Since(start))
+	}
 }

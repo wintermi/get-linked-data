@@ -12,23 +12,27 @@ A command line application designed to crawl a given set of URLs and scrape the 
 
 ```
 USAGE:
-    get-linked-data -i URL_CSV -e ELEMENT_SELECTOR -o OUTPUT_CSV
+    get-linked-data -i URL_CSV -s ELEMENT_SELECTOR -o OUTPUT_CSV -e FAILED_URL_CSV
 
 ARGS:
   -d string
-    	Field Delimiter  (Required) (default ",")
+      Field Delimiter  (Required) (default ",")
   -e string
-    	Element Selector  (Required)
+      Failed Request URLs Output CSV File  (Required)
   -i string
-    	CSV File containing URLs to Scrape  (Required)
+      CSV File containing URLs to Scrape  (Required)
   -j string
-    	jq Selector
+      jq Selector
   -o string
-    	Output CSV File  (Required)
-  -v	Output Verbose Detail
+      Output Scraped Data CSV File  (Required)
+  -p int
+      Parallelism or Maximum allowed Concurrent Requests (default 10)
+  -s string
+      Element Selector  (Required)
+  -v  Output Verbose Detail
   -w int
-    	Wait Time in Milliseconds between Colly Visits (default 100)
-  -x	Scrape XML not HTML
+      Random Wait Time in Milliseconds between Requests (default 500)
+  -x  Scrape XML not HTML
 ```
 
 ## Example
