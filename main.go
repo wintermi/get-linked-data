@@ -59,8 +59,8 @@ func main() {
 	var outputCsvFile = flag.String("o", "", "Output Scraped Data CSV File  (Required)")
 	var errorCsvFile = flag.String("e", "", "Failed Request URLs Output CSV File  (Required)")
 	var fieldDelimiter = flag.String("d", ",", "Field Delimiter  (Required)")
-	var parallelism = flag.Int("p", 10, "Parallelism or Maximum allowed Concurrent Requests")
-	var waitTime = flag.Int("w", 500, "Random Wait Time in Milliseconds between Requests")
+	var parallelism = flag.Int("p", 100, "Parallelism or Maximum allowed Concurrent Requests")
+	var waitTime = flag.Int("w", 2000, "Random Wait Time in Milliseconds between Requests")
 	var scrapeXML = flag.Bool("x", false, "Scrape XML not HTML")
 	var verbose = flag.Bool("v", false, "Output Verbose Detail")
 
