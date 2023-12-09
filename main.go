@@ -25,7 +25,7 @@ import (
 )
 
 var logger zerolog.Logger
-var applicationText = "%s 0.3.0%s"
+var applicationText = "%s 0.3.1%s"
 var copyrightText = "Copyright 2023-2024, Matthew Winter\n"
 var indent = "..."
 var doubleIndent = "......."
@@ -108,7 +108,7 @@ func main() {
 	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
 	var crawler = NewCrawler(*elementSelector, *jqSelector, *waitTime, *parallelism)
 	if err := crawler.LoadUrlFile(*inputCsvFile, *fieldDelimiter); err != nil {
-		logger.Error().Err(err).Msg("Failed Loading Queries")
+		logger.Error().Err(err).Msg("Failed Loading URL List")
 		os.Exit(1)
 	}
 
@@ -118,21 +118,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Shuffle the URL List, changing the order Colly scrapes them
+	if err := crawler.ShuffleURLs(); err != nil {
+		logger.Error().Err(err).Msg("Failed to Shuffle URL List")
+		os.Exit(1)
+	}
+
 	// Execute the Colly Collector
 	if err := crawler.ExecuteScrape(*scrapeXML); err != nil {
-		logger.Error().Err(err).Msg("Linked Data Scrape Failed")
+		logger.Error().Err(err).Msg("Scraping Linked Data Failed")
 		os.Exit(1)
 	}
 
 	// Write the Scraped Data out to a File
 	if err := crawler.WriteDataFile(*outputCsvFile, *fieldDelimiter); err != nil {
-		logger.Error().Err(err).Msg("Write Data File Failed")
+		logger.Error().Err(err).Msg("Writing Data File Failed")
 		os.Exit(1)
 	}
 
 	// Write the Failed Request URLs out to a File
 	if err := crawler.WriteErrorFile(*errorCsvFile, *fieldDelimiter); err != nil {
-		logger.Error().Err(err).Msg("Write Error File Failed")
+		logger.Error().Err(err).Msg("Writing Error File Failed")
 		os.Exit(1)
 	}
 

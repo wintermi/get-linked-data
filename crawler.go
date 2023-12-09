@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -75,6 +76,8 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 // Load all URLs from the first column of the provided CSV File
 func (c *Crawler) LoadUrlFile(name string, delimiter string) error {
 
+	logger.Info().Msgf("%s Loading URL List", indent)
+
 	// Check file exists
 	if _, err := os.Stat(name); err != nil {
 		return fmt.Errorf("[LoadUrlFile] File Does Not Exist: %w", err)
@@ -120,6 +123,8 @@ func (c *Crawler) LoadUrlFile(name string, delimiter string) error {
 // Deduplicate the list of URLs
 func (c *Crawler) DeduplicateURLs() error {
 
+	logger.Info().Msgf("%s Deduplicating URL List", indent)
+
 	// Define a hash map and deduped array list
 	bucket := make(map[string]bool)
 	var deduped []string
@@ -134,6 +139,21 @@ func (c *Crawler) DeduplicateURLs() error {
 
 	// Replace the Crawler URL list with the deduped list
 	c.URLs = deduped
+
+	return nil
+}
+
+//---------------------------------------------------------------------------------------
+
+// Shuffle the list of URLs
+func (c *Crawler) ShuffleURLs() error {
+
+	logger.Info().Msgf("%s Shuffling URL List", indent)
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(c.URLs), func(i, j int) {
+		c.URLs[i], c.URLs[j] = c.URLs[j], c.URLs[i]
+	})
 
 	return nil
 }
