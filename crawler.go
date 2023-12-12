@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -52,7 +51,7 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 	// Initialise New Crawler
 	c := new(Crawler)
 	c.Collector = colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/120.0"),
+		colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"),
 		colly.MaxDepth(1),
 		colly.Async(true),
 	)
@@ -245,7 +244,9 @@ func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
 				return
 			}
 
-			c.ScrapedData = append(c.ScrapedData, textSelected)
+			if len(textSelected) > 0 {
+				c.ScrapedData = append(c.ScrapedData, textSelected)
+			}
 		})
 	}
 
@@ -360,7 +361,7 @@ func jqSelect(selectedText string, query string) (string, error) {
 	jqSelector := jq.Run(jsonData)
 	val, ok := jqSelector.Next()
 	if !ok {
-		return "", errors.New("jq Selector Failed to Find First Value")
+		return "", nil
 	}
 
 	// Check if the first value returned is actually an error
