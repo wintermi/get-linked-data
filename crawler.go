@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,6 +40,7 @@ type Crawler struct {
 	URLs              []string
 	FailedRequestURLs []string
 	ScrapedData       []string
+	randSeed          *rand.Rand
 }
 
 //---------------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 	// Initialise New Crawler
 	c := new(Crawler)
 	c.Collector = colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"),
+		colly.UserAgent(USER_AGENTS[0]),
 		colly.MaxDepth(1),
 		colly.Async(true),
 	)
@@ -61,11 +61,9 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 		RandomDelay: time.Millisecond * time.Duration(waitTime),
 	})
 	c.Collector.SetRequestTimeout(120 * time.Second)
-	c.Collector.WithTransport(&http.Transport{
-		DisableKeepAlives: true,
-	})
 	c.elementSelector = elementSelector
 	c.jqSelector = jqSelector
+	c.randSeed = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	return c
 }
@@ -217,7 +215,15 @@ func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
 
 	// Executed on every request made by the Colly Collector
 	c.Collector.OnRequest(func(r *colly.Request) {
-		r.Headers.Set("Accept-Encoding", "gzip")
+		r.Headers.Set("Connection", "keep-alive")
+		r.Headers.Set("Upgrade-Insecure-Requests", "1")
+		r.Headers.Set("User-Agent", USER_AGENTS[c.randSeed.Intn(len(USER_AGENTS))])
+		r.Headers.Set(
+			"Accept",
+			"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+		)
+		r.Headers.Set("Accept-Language", "en-US,en;q=0.9")
+		r.Headers.Set("Accept-Encoding", "gzip, deflate")
 		r.Ctx.Put(ORIGINAL_URL, r.URL.String())
 	})
 
