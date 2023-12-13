@@ -62,6 +62,7 @@ func main() {
 	var parallelism = flag.Int("p", 100, "Parallelism or Maximum allowed Concurrent Requests")
 	var waitTime = flag.Int("w", 2000, "Random Wait Time in Milliseconds between Requests")
 	var scrapeXML = flag.Bool("x", false, "Scrape XML not HTML")
+	var scrapeGoogleWebCache = flag.Bool("g", false, "Scrape Google's Cached Version Instead")
 	var verbose = flag.Bool("v", false, "Output Verbose Detail")
 
 	// Parse the flags
@@ -103,6 +104,7 @@ func main() {
 	logger.Info().Int("Parallelism or Maximum allowed Concurrent Requests", *parallelism).Msg(indent)
 	logger.Info().Int("Random Wait Time in Milliseconds between Requests", *waitTime).Msg(indent)
 	logger.Info().Bool("Scrape XML not HTML", *scrapeXML).Msg(indent)
+	logger.Info().Bool("Scrape Google's Cached Version Instead", *scrapeGoogleWebCache).Msg(indent)
 	logger.Info().Msg("Begin")
 
 	// Load the URLs into memory ready for Colly to crawl & scrape the Linked Data
@@ -113,7 +115,7 @@ func main() {
 	}
 
 	// Set the Allowed Domain List for the Colly Collector
-	if err := crawler.SetAllowedDomains(); err != nil {
+	if err := crawler.SetAllowedDomains(*scrapeGoogleWebCache); err != nil {
 		logger.Error().Err(err).Msg("Failed to Set Allowed Domain List")
 		os.Exit(1)
 	}
@@ -125,7 +127,7 @@ func main() {
 	}
 
 	// Execute the Colly Collector
-	if err := crawler.ExecuteScrape(*scrapeXML); err != nil {
+	if err := crawler.ExecuteScrape(*scrapeXML, *scrapeGoogleWebCache); err != nil {
 		logger.Error().Err(err).Msg("Scraping Linked Data Failed")
 		os.Exit(1)
 	}

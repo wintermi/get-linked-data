@@ -16,23 +16,24 @@ USAGE:
 
 ARGS:
   -d string
-      Field Delimiter  (Required) (default ",")
+    	Field Delimiter  (Required) (default ",")
   -e string
-      Failed Request URLs Output CSV File  (Required)
+    	Failed Request URLs Output CSV File  (Required)
+  -g	Scrape Google's Cached Version Instead
   -i string
-      CSV File containing URLs to Scrape  (Required)
+    	CSV File containing URLs to Scrape  (Required)
   -j string
-      jq Selector
+    	jq Selector
   -o string
-      Output Scraped Data CSV File  (Required)
+    	Output Scraped Data CSV File  (Required)
   -p int
-      Parallelism or Maximum allowed Concurrent Requests (default 10)
+    	Parallelism or Maximum allowed Concurrent Requests (default 100)
   -s string
-      Element Selector  (Required)
-  -v  Output Verbose Detail
+    	Element Selector  (Required)
+  -v	Output Verbose Detail
   -w int
-      Random Wait Time in Milliseconds between Requests (default 500)
-  -x  Scrape XML not HTML
+    	Random Wait Time in Milliseconds between Requests (default 2000)
+  -x	Scrape XML not HTML
 ```
 
 ## Example

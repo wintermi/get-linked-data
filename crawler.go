@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -61,6 +62,9 @@ func NewCrawler(elementSelector string, jqSelector string, waitTime int, paralle
 		RandomDelay: time.Millisecond * time.Duration(waitTime),
 	})
 	c.Collector.SetRequestTimeout(120 * time.Second)
+	c.Collector.WithTransport(&http.Transport{
+		DisableKeepAlives: true,
+	})
 	c.elementSelector = elementSelector
 	c.jqSelector = jqSelector
 	c.randSeed = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -158,7 +162,7 @@ func (c *Crawler) ShuffleURLs() error {
 //---------------------------------------------------------------------------------------
 
 // Populate the Collector Allowed Domains
-func (c *Crawler) SetAllowedDomains() error {
+func (c *Crawler) SetAllowedDomains(scrapeGoogleWebCache bool) error {
 
 	// Define a hash map and domain array list
 	bucket := make(map[string]bool)
@@ -196,6 +200,14 @@ func (c *Crawler) SetAllowedDomains() error {
 		}
 	}
 
+	// Add Google's Web Cache Domains if required
+	if scrapeGoogleWebCache {
+		allowedDomains = append(allowedDomains, "google.com")
+		allowedDomains = append(allowedDomains, "www.google.com")
+		allowedDomains = append(allowedDomains, "googleusercontent.com")
+		allowedDomains = append(allowedDomains, "webcache.googleusercontent.com")
+	}
+
 	// Set the Collector Allowed Domain List
 	c.Collector.AllowedDomains = allowedDomains
 
@@ -205,7 +217,7 @@ func (c *Crawler) SetAllowedDomains() error {
 //---------------------------------------------------------------------------------------
 
 // Execute Scraping of URLs
-func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
+func (c *Crawler) ExecuteScrape(scrapeXML bool, scrapeGoogleWebCache bool) error {
 	defer timer("Colly Collection")()
 
 	// Initialise Scraped Data Output
@@ -215,13 +227,8 @@ func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
 
 	// Executed on every request made by the Colly Collector
 	c.Collector.OnRequest(func(r *colly.Request) {
-		r.Headers.Set("Connection", "keep-alive")
-		r.Headers.Set("Upgrade-Insecure-Requests", "1")
 		r.Headers.Set("User-Agent", USER_AGENTS[c.randSeed.Intn(len(USER_AGENTS))])
-		r.Headers.Set(
-			"Accept",
-			"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-		)
+		r.Headers.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
 		r.Headers.Set("Accept-Language", "en-US,en;q=0.9")
 		r.Headers.Set("Accept-Encoding", "gzip, deflate")
 		r.Ctx.Put(ORIGINAL_URL, r.URL.String())
@@ -265,8 +272,14 @@ func (c *Crawler) ExecuteScrape(scrapeXML bool) error {
 	})
 
 	// Iterate through the URL List and add to the Collector queue for a Visit
-	for _, url := range c.URLs {
-		_ = c.Collector.Visit(url)
+	for _, rawURL := range c.URLs {
+
+		// If requesting to Scrape Google's Cached Version, change the URL here after the original was stored in the Request Context
+		if scrapeGoogleWebCache {
+			rawURL = fmt.Sprintf("https://webcache.googleusercontent.com/search?q=%s", url.QueryEscape(fmt.Sprintf("cache:%s", rawURL)))
+		}
+
+		_ = c.Collector.Visit(rawURL)
 	}
 	c.Collector.Wait()
 
