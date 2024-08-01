@@ -6,7 +6,7 @@ require (
 	github.com/gocolly/colly v1.2.0
 	github.com/itchyny/gojq v0.12.16
 	github.com/rs/zerolog v1.33.0
-	github.com/weppos/publicsuffix-go v0.40.0
+	github.com/weppos/publicsuffix-go v0.40.2
 )
 
 require (
