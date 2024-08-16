@@ -1,6 +1,8 @@
 module github.com/wintermi/get-linked-data
 
-go 1.21
+go 1.22
+
+toolchain go1.22.6
 
 require (
 	github.com/gocolly/colly v1.2.0
