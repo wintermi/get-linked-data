@@ -1,6 +1,6 @@
 # Get Linked Data
 
-[![Workflows](https://github.com/wintermi/get-linked-data/actions/workflows/go.yaml/badge.svg)](https://github.com/wintermi/get-linked-data/actions)
+[![Workflows](https://github.com/wintermi/get-linked-data/workflows/Go%20-%20Build/badge.svg)](https://github.com/wintermi/get-linked-data/actions)
 [![Go Report](https://goreportcard.com/badge/github.com/wintermi/get-linked-data)](https://goreportcard.com/report/github.com/wintermi/get-linked-data)
 [![License](https://img.shields.io/github/license/wintermi/get-linked-data.svg)](https://github.com/wintermi/get-linked-data/blob/main/LICENSE)
 [![Release](https://img.shields.io/github/v/release/wintermi/get-linked-data?include_prereleases)](https://github.com/wintermi/get-linked-data/releases)
